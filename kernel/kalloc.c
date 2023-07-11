@@ -80,3 +80,22 @@ kalloc(void)
     memset((char*)r, 5, PGSIZE); // fill with junk
   return (void*)r;
 }
+
+uint64
+count_free_mem(void) // added for counting free memory in bytes (lab2)
+{
+  acquire(&kmem.lock); // 必须先锁内存管理结构，防止竞态条件出现
+  
+  // 统计空闲页数，乘上页大小 PGSIZE 就是空闲的内存字节数
+  uint64 mem_bytes = 0;
+  struct run *r = kmem.freelist;
+  while(r){
+    mem_bytes += PGSIZE;
+    r = r->next;
+  }
+
+  release(&kmem.lock);
+
+  return mem_bytes;
+}
+
