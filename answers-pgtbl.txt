@@ -1,0 +1,94 @@
+Speed up system calls
+
+// proc.c
+add these in proc_pagetable
+// map the read-only just for speeding up system calls
+  if(mappages(pagetable, USYSCALL, PGSIZE,
+              (uint64)(p->usyscall), PTE_R | PTE_U) < 0) {
+    uvmunmap(pagetable, TRAMPOLINE, 1, 0);
+    uvmunmap(pagetable, TRAPFRAME, 1, 0);
+    uvmfree(pagetable, 0);
+    return 0;
+  }
+
+alloc:
+// Allocate a usyscall page.
+  if((p->usyscall = (struct usyscall *)kalloc()) == 0) {
+    freeproc(p);
+    release(&p->lock);
+    return 0;
+  }
+  p->usyscall->pid = p->pid;
+
+free:
+if(p->usyscall) 
+    kfree((void*)p->usyscall);
+  p->usyscall = 0;
+
+Print a page table（easy）:
+
+void 
+vmprint_recursive(pagetable_t pagetable, int level) 
+{
+  
+  for (int i = 0; i < 512; i++) {
+    pte_t pte= pagetable[i];
+    if(pte & PTE_V) {
+      uint64 pa = PTE2PA(pte);
+      for (int i = 0; i < level; i ++) {
+        if(i != 0) printf(" ");
+        printf("..");
+      }
+      printf("%d: pte %p pa %p\n", i, pte, pa);
+      if ((pte & (PTE_R|PTE_W|PTE_X)) == 0) {
+        vmprint_recursive((pagetable_t)pa, level + 1);
+      }
+    }
+  }
+}
+
+// Recursively print page-table pages
+void
+vmprint(pagetable_t pagetable) 
+{
+  printf("page table %p\n", pagetable);
+  vmprint_recursive(pagetable, 1);
+}
+
+add in exec.c:
+if(p->pid==1) vmprint(p->pagetable);
+
+
+Detecting which pages have been accessed （hard）:
+add in riscv.h
+#define PTE_A (1L << 6) // 1 -> indicates has been read, written, or fetched since last time.
+add in defs.h:
+pte_t *         walk(pagetable_t pagetable, uint64 va, int alloc);
+add in sysproc.c
+int
+sys_pgaccess(void)
+{
+  // lab pgtbl: your code here.
+  // buf is start addr, abits is bitmap 
+  uint64 va, abits;
+  // pg_num is
+  int pg_num;
+  unsigned int bitmap = 0;
+  if(argaddr(0, &va) < 0 || argint(1, &pg_num) < 0 || argaddr(2, &abits) < 0) 
+    return -1;
+  if(pg_num > MAXPGNUM) 
+    return -1;
+  pagetable_t pagetable = myproc()->pagetable;
+  for(int i = 0; i < pg_num; i ++) {
+    pte_t* pte = walk(pagetable, va, 0);
+    if(*pte & PTE_A) {
+      bitmap |= 1 << i;
+      *pte &= ~ PTE_A;
+    }
+    va += PGSIZE;
+  }
+  if(copyout(pagetable, abits, (char*) &bitmap, 
+    sizeof(unsigned int)) < 0)
+    return -1;
+  return 0;
+}
