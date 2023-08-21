@@ -30,7 +30,7 @@ const char *syscall_names[] = {
 [SYS_mkdir]   "mkdir",
 [SYS_close]   "close",
 [SYS_trace]   "trace",
-[SYS_sysinfo] "trace",
+[SYS_sysinfo] "sysinfo",
 };
 
 // Fetch the uint64 at addr from the current process.
@@ -169,7 +169,7 @@ syscall(void)
   if(num > 0 && num < NELEM(syscalls) && syscalls[num]) {
     p->trapframe->a0 = syscalls[num]();
         if((p->syscall_trace >> num) & 1) {
-	      printf("%d: syscall %s -> %d\n",p->pid, syscall_names[num], p->trapframe->a0); // syscall_names[num]: ´Ó syscall ±àºÅµ½ syscall ÃûµÄÓ³Éä±í
+	      printf("%d: syscall %s -> %d\n",p->pid, syscall_names[num], p->trapframe->a0); // syscall_names[num]: ï¿½ï¿½ syscall ï¿½ï¿½Åµï¿½ syscall ï¿½ï¿½ï¿½ï¿½Ó³ï¿½ï¿½ï¿½
 	    }
   } else {
     printf("%d %s: unknown sys call %d\n",
